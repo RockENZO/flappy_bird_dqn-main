@@ -3,6 +3,7 @@ import pygame
 from pytorch_mlp import MLPRegression
 import argparse
 from console import FlappyBirdEnv
+from collections import deque
 
 STUDENT_ID = 'a1880714'
 DEGREE = 'UG'  # or 'PG'
@@ -18,21 +19,63 @@ class MyAgent:
             self.mode = mode
 
         # modify these
-        self.storage = ...  # a data structure of your choice (D in the Algorithm 2)
+        self.storage = deque(maxlen=10000)  # a data structure of your choice (D in the Algorithm 2)
         # A neural network MLP model which can be used as Q
-        self.network = MLPRegression(input_dim=..., output_dim=..., learning_rate=...)
+        self.network = MLPRegression(input_dim=5, output_dim=2, learning_rate=0.001)
         # network2 has identical structure to network1, network2 is the Q_f
-        self.network2 = MLPRegression(input_dim=..., output_dim=..., learning_rate=...)
+        self.network2 = MLPRegression(input_dim=5, output_dim=2, learning_rate=0.001)
         # initialise Q_f's parameter by Q's, here is an example
         MyAgent.update_network_model(net_to_update=self.network2, net_as_source=self.network)
 
-        self.epsilon = ...  # probability ε in Algorithm 2
-        self.n = ...  # the number of samples you'd want to draw from the storage each time
-        self.discount_factor = ...  # γ in Algorithm 2
+        self.epsilon = 1.0  # probability ε in Algorithm 2
+        self.n = 32  # the number of samples you'd want to draw from the storage each time
+        self.discount_factor = 0.99  # γ in Algorithm 2
 
         # do not modify this
         if load_model_path:
             self.load_model(load_model_path)
+
+    def build_state(self, state: dict) -> np.ndarray:
+        """
+        Convert the raw game state into a normalized feature vector.
+        Args:
+            state: The raw state dictionary from the game environment.
+        Returns:
+            A numpy array representing the feature vector.
+        """
+        # Extract and normalize features
+        bird_y = state['bird_y'] / state['screen_height']
+        bird_velocity = state['bird_velocity'] / 10  # Normalize velocity
+        pipes = state['pipes']
+        if pipes:
+            pipe_x = pipes[0]['x'] / state['screen_width']
+            pipe_gap_top = pipes[0]['top'] / state['screen_height']  # Corrected key
+            pipe_gap_bottom = pipes[0]['bottom'] / state['screen_height']  # Corrected key
+        else:
+            # Default values if no pipes are present
+            pipe_x, pipe_gap_top, pipe_gap_bottom = 1.0, 0.5, 0.5
+
+        # Return the feature vector
+        return np.array([bird_y, bird_velocity, pipe_x, pipe_gap_top, pipe_gap_bottom])
+
+    def compute_reward(self, state: dict) -> float:
+        """
+        Compute the reward based on the current game state.
+        Args:
+            state: The raw state dictionary from the game environment.
+        Returns:
+            A float representing the reward.
+        """
+        if state.get('done', False):  # Check if the game is over
+            if state['bird_y'] <= 0 or state['bird_y'] >= state['screen_height']:
+                # Penalize going off-screen
+                return -10.0
+            else:
+                # Penalize hitting a pipe
+                return -5.0
+        else:
+            # Reward for surviving (e.g., based on mileage or proximity to the pipe gap)
+            return 1.0
 
     def choose_action(self, state: dict, action_table: dict) -> int:
         """
@@ -43,8 +86,26 @@ class MyAgent:
         Returns:
             action: the action code as specified by the action_table
         """
-        # following pseudocode to implement this function
-        a_t = ...
+        # Map valid actions to indices (0: jump, 1: do_nothing)
+        valid_actions = {action_table['jump']: 0, action_table['do_nothing']: 1}
+
+        phi_t = self.build_state(state)
+        if self.mode == 'train':
+            # ε-greedy action selection
+            if np.random.rand() < self.epsilon:
+                # Select a random valid action
+                a_t = np.random.choice(list(valid_actions.keys()))
+            else:
+                # Select the action that maximizes Q(ϕ_t, a)
+                q_values = self.network.predict(np.array([phi_t]))
+                a_t = max(valid_actions, key=lambda action: q_values[0][valid_actions[action]])
+
+            # Store the partial transition (ϕ_t, a_t, r_t=None, q_t+1=None) in memory
+            self.storage.append({'phi_t': phi_t, 'action': valid_actions[a_t], 'reward': None, 'q_t1': None})
+        elif self.mode == 'eval':
+            # Always select the action that maximizes Q(ϕ_t, a) in evaluation mode
+            q_values = self.network.predict(np.array([phi_t]))
+            a_t = max(valid_actions, key=lambda action: q_values[0][valid_actions[action]])
 
         return a_t
 
@@ -57,7 +118,53 @@ class MyAgent:
         Returns:
             None
         """
-        # following pseudocode to implement this function
+        if self.mode == 'train':
+            # Build the state representation (ϕ_t+1)
+            phi_t1 = self.build_state(state)
+
+            # Define the reward r_t based on the current state
+            reward = self.compute_reward(state)
+
+            # Compute the Q-value for t+1
+            if state.get('done', False):  # Check if the game is over
+                q_t1 = 0  # Terminal state
+            else:
+                q_t1 = np.max(self.network2.predict(np.array([phi_t1])))
+
+            # Update the last transition in memory with (r_t, q_t+1)
+            if self.storage:
+                self.storage[-1]['reward'] = reward
+                self.storage[-1]['q_t1'] = q_t1
+
+            # Sample a random minibatch of transitions from memory
+            if len(self.storage) >= self.n:
+                minibatch = np.random.choice(self.storage, self.n, replace=False)
+
+                # Prepare training data
+                X, Y, W = [], [], []
+                for transition in minibatch:
+                    phi_t = transition['phi_t']
+                    action = transition['action']
+                    r_t = transition['reward']
+                    q_t1 = transition['q_t1']
+
+                    # Compute the target value
+                    target = r_t + self.discount_factor * q_t1
+                    y = np.zeros(2)  # Match the output size of the network (2 actions: jump, do_nothing)
+                    y[action] = target
+                    w = np.zeros(2)  # Match the output size of the network
+                    w[action] = 1
+
+                    X.append(phi_t)
+                    Y.append(y)
+                    W.append(w)
+
+                # Train the Q network
+                self.network.fit_step(np.array(X), np.array(Y), np.array(W))
+
+            # Optionally decay epsilon
+            self.epsilon = max(0.1, self.epsilon * 0.995)
+
 
     def save_model(self, path: str = 'my_model.ckpt'):
         """
@@ -107,6 +214,8 @@ if __name__ == '__main__':
     env = FlappyBirdEnv(config_file_path='config.yml', show_screen=True, level=args.level, game_length=10)
     agent = MyAgent(show_screen=True)
     episodes = 10000
+    clear_memory_frequency = 50  # Clear memory every 50 episodes
+    update_frequency = 10  # Update Q_f every 10 episodes
     for episode in range(episodes):
         env.play(player=agent)
 
@@ -119,10 +228,12 @@ if __name__ == '__main__':
         agent.save_model(path='my_model.ckpt')
 
         # you'd want to clear the memory after one or a few episodes
-        ...
+        if (episode + 1) % clear_memory_frequency == 0:
+            agent.storage = []
 
         # you'd want to update the fixed Q-target network (Q_f) with Q's model parameter after one or a few episodes
-        ...
+        if (episode + 1) % update_frequency == 0:
+            MyAgent.update_network_model(net_to_update=agent.network2, net_as_source=agent.network)
 
     # the below resembles how we evaluate your agent
     env2 = FlappyBirdEnv(config_file_path='config.yml', show_screen=False, level=args.level)
