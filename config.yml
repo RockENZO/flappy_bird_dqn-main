@@ -1,0 +1,108 @@
+screen_width: 400 # screen parameters
+screen_height: 600 # screen parameter
+gravity: 0.5 # the gravity factor
+jump_strength: -8 # the anti-gravity factor that makes the bird jump
+pipe_speed: 3 # how fast do the pipes move to the left hand side of the screen
+bird_img_path: my_bird.png # or literal_bird.png or draw it yourself
+show_screen: false # show the screen or not, showing the screen will be slow, but you can see it yourself to figure out the agent's performance. We will turn of screen when we evaluate your code.
+random_seed: 0 # seed to the console's random generator
+
+colors: # please feel free to change to something that soothe your eyes.
+  background: # background color
+  - 255
+  - 255
+  - 255
+  pipe: # pipe color
+  - 0
+  - 128
+  - 0
+  score: # score text color
+  - 0
+  - 0
+  - 255
+
+bird_attributes:
+  width: 40 # size of the bird
+  height: 30 # size of the bird
+  x: 50 # initial x
+  y: 300 # initial y
+
+level: 5 # the level selection to run the game, can be overridden by the environment's initialization arguments
+levels: # the preset game levels
+  1: # level 1 - Sky is the limit
+    pipe_attributes:
+      pipe_frequency: 1800
+      width: 60 # each pipe's width
+      window_y_mean: 0
+      window_y_offset: 0
+      gap: 600 # gap between two pipes vertically
+      formation: random
+    minimum_action_gap: 2 # let the emulator run two iterations between agent actions, given 30 Hz frame rate, this is 2 * 1/30 = 67ms action gap, average human reaction time is ~150 to 250ms
+    game_length: 10
+  2: # level 2 - Easy peasy lemon squeezy!
+    pipe_attributes:
+      pipe_frequency: 1800
+      width: 60 # each pipe's width
+      window_y_mean: 250
+      window_y_offset: 0
+      gap: 150 # gap between two pipes vertically
+      formation: random
+    minimum_action_gap: 2
+    game_length: 10 # this sets the limiting score which the game should stop (to prevent the game from running into infinity loop, i.e., for low levels.
+  3: # level 3 -  Life has its ups and downs
+    pipe_attributes:
+      pipe_frequency: 1800
+      width: 60 # each pipe's width
+      window_y_mean: 250
+      window_y_offset: 100
+      gap: 200 # gap between two pipes vertically
+      formation: sine
+    minimum_action_gap: 2
+    game_length: 10
+  4: # level 4 - Life is full of random pipes (UG)
+    pipe_attributes:
+      pipe_frequency: 1800
+      width: 60 # each pipe's width
+      window_y_mean: 250
+      window_y_offset: 150
+      gap: 200 # gap between two pipes vertically
+      formation: random
+    minimum_action_gap: 2
+    game_length: 10
+  5: # level 5 - Life is full of random pipes (PG)
+    pipe_attributes:
+      pipe_frequency: 1800
+      width: 75 # increased - game is harder
+      window_y_mean: 250
+      window_y_offset: 150
+      gap: 200
+      formation: random
+    minimum_action_gap: 2
+    game_length: 10
+  6: # level 6 - Birdie thinks the pipes are getting mean!
+    pipe_attributes:
+      pipe_frequency: 1500 # reduced - game is harder
+      width: 60 # reduced - same as level 4
+      window_y_mean: 250
+      window_y_offset: 100 # reduced - compensate difficulty
+      gap: 150 # reduced - game is harder
+      formation: random
+    minimum_action_gap: 2
+    game_length: 10 # during Gradescope evaluation, this is set to 50
+  7: # level 7 - A huge wave of pipies is approaching (secret level, not evaluated)
+    pipe_attributes:
+      pipe_frequency: 1200 # further reduced - game is much harder
+      width: 40 # reduced - compensate difficulty
+      window_y_mean: 250
+      window_y_offset: 100
+      gap: 150
+      formation: random
+    minimum_action_gap: 1 # reduced it to 1 makes it harder to train but more micro control
+    game_length: 10
+
+frame_rate: 30 # the framerate of the game
+action_table:
+  jump: 0 # make the birdie jump
+  do_nothing: 1 # literally do nothing (let the gravity do the work!)
+  quit_game: 2 # this allows the agent to close the game window, useful for the human agent, AI agent should ignore this.
+verbose: false # let the game show debugging information
