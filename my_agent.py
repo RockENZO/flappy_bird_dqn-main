@@ -207,7 +207,7 @@ class MyAgent:
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--level', type=int, default=2)
+    parser.add_argument('--level', type=int, default=3)
 
     args = parser.parse_args()
 
