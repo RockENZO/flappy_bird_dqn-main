@@ -28,7 +28,9 @@ class MyAgent:
         MyAgent.update_network_model(net_to_update=self.network2, net_as_source=self.network)
 
         self.epsilon = 1.0  # probability ε in Algorithm 2
-        self.n = 32  # the number of samples you'd want to draw from the storage each time
+        self.min_epsilon = 0.01
+        self.epsilon_decay = 0.995
+        self.n = 64  # the number of samples you'd want to draw from the storage each time
         self.discount_factor = 0.99  # γ in Algorithm 2
 
         # do not modify this
@@ -45,18 +47,15 @@ class MyAgent:
         """
         # Extract and normalize features
         bird_y = state['bird_y'] / state['screen_height']
-        bird_velocity = state['bird_velocity'] / 10  # Normalize velocity
+        bird_velocity = state['bird_velocity'] / 15  # Adjust based on observed max velocity
         pipes = state['pipes']
         if pipes:
             pipe_x = pipes[0]['x'] / state['screen_width']
-            pipe_gap_top = pipes[0]['top'] / state['screen_height']  # Corrected key
-            pipe_gap_bottom = pipes[0]['bottom'] / state['screen_height']  # Corrected key
+            pipe_gap_center = ((pipes[0]['top'] + pipes[0]['bottom']) / 2) / state['screen_height']
+            distance_to_gap = abs(state['bird_y'] - pipe_gap_center) / state['screen_height']
         else:
-            # Default values if no pipes are present
-            pipe_x, pipe_gap_top, pipe_gap_bottom = 1.0, 0.5, 0.5
-
-        # Return the feature vector
-        return np.array([bird_y, bird_velocity, pipe_x, pipe_gap_top, pipe_gap_bottom])
+            pipe_x, pipe_gap_center, distance_to_gap = 1.0, 0.5, 0.5
+        return np.array([bird_y, bird_velocity, pipe_x, pipe_gap_center, distance_to_gap])
 
     def compute_reward(self, state: dict) -> float:
         """
@@ -66,16 +65,18 @@ class MyAgent:
         Returns:
             A float representing the reward.
         """
-        if state.get('done', False):  # Check if the game is over
-            if state['bird_y'] <= 0 or state['bird_y'] >= state['screen_height']:
-                # Penalize going off-screen
-                return -10.0
-            else:
-                # Penalize hitting a pipe
-                return -5.0
+        if state.get('done', False):
+            return -1.0 if state['done_type'] == 'hit_pipe' else -0.5
         else:
-            # Reward for surviving (e.g., based on mileage or proximity to the pipe gap)
-            return 1.0
+            reward = 0.1  # Base reward for staying alive
+            if state['pipes']:
+                pipe = state['pipes'][0]
+                pipe_gap_center = (pipe['top'] + pipe['bottom']) / 2
+                distance_to_gap = abs(state['bird_y'] - pipe_gap_center) / state['screen_height']
+                reward -= distance_to_gap ** 2  # Quadratic penalty for distance
+                if pipe['x'] + pipe['width'] < state['bird_x']:
+                    reward += 2.0  # Reward for passing a pipe
+            return reward
 
     def choose_action(self, state: dict, action_table: dict) -> int:
         """
@@ -163,7 +164,7 @@ class MyAgent:
                 self.network.fit_step(np.array(X), np.array(Y), np.array(W))
 
             # Optionally decay epsilon
-            self.epsilon = max(0.1, self.epsilon * 0.995)
+            self.epsilon = max(self.min_epsilon, self.epsilon * self.epsilon_decay)
 
 
     def save_model(self, path: str = 'my_model.ckpt'):
@@ -206,7 +207,7 @@ class MyAgent:
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--level', type=int, default=1)
+    parser.add_argument('--level', type=int, default=2)
 
     args = parser.parse_args()
 
@@ -214,8 +215,8 @@ if __name__ == '__main__':
     env = FlappyBirdEnv(config_file_path='config.yml', show_screen=True, level=args.level, game_length=10)
     agent = MyAgent(show_screen=True)
     episodes = 10000
-    clear_memory_frequency = 50  # Clear memory every 50 episodes
-    update_frequency = 10  # Update Q_f every 10 episodes
+    clear_memory_frequency = 20  # Clear memory every 50 episodes
+    update_frequency = 5  # Update Q_f every 10 episodes
     for episode in range(episodes):
         env.play(player=agent)
 
@@ -223,13 +224,14 @@ if __name__ == '__main__':
         # env.mileage has the mileage value from the last play
         print(env.score)
         print(env.mileage)
+        print(f"Episode {episode}: Score = {env.score}, Epsilon = {agent.epsilon}")
 
         # store the best model based on your judgement
         agent.save_model(path='my_model.ckpt')
 
         # you'd want to clear the memory after one or a few episodes
         if (episode + 1) % clear_memory_frequency == 0:
-            agent.storage = []
+            agent.storage = deque(maxlen=10000)
 
         # you'd want to update the fixed Q-target network (Q_f) with Q's model parameter after one or a few episodes
         if (episode + 1) % update_frequency == 0:
