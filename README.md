@@ -4,8 +4,7 @@ Flappy Bird is a simple game to study how to build a reinforcement learning agen
 space (i.e., jump or do nothing) and simple game logic (i.e., game over when the bird hits a pipe or drops out of the screen). 
 The goal is to control the bird so that it dodges as many pipes as possible. 
 Here we present you a simple Flappy Bird environment (emulator) made by [Pygame](https://www.pygame.org/news) and [Gymnasium](https://gymnasium.farama.org/index.html) (formerly OpenAI's Gym). 
-The initial code of the game environment was composed by ChatGPT, if you are interested, you may ask ChatGPT: "Can 
-you make a Flappy Bird game?", you will get something similar. A screenshot of the game graphics is below.
+
 
 <img src="documentation/img.png" alt="flappy bird screen shot" width="300" />
 
