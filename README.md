@@ -1,33 +1,40 @@
-# The Game - Flappy Bird
+# Flappy Bird DQN Coursework Project
 
-Flappy Bird is a simple game to study how to build a reinforcement learning agent given its limited action 
-space (i.e., jump or do nothing) and simple game logic (i.e., game over when the bird hits a pipe or drops out of the screen). 
-The goal is to control the bird so that it dodges as many pipes as possible. 
-Here we present you a simple Flappy Bird environment (emulator) made by [Pygame](https://www.pygame.org/news) and [Gymnasium](https://gymnasium.farama.org/index.html) (formerly OpenAI's Gym). 
+A reinforcement-learning coursework project using a Pygame/Gymnasium Flappy Bird environment and a PyTorch MLP Q-network. `my_agent.py` implements epsilon-greedy action selection, replay storage and a separate periodically updated target network for jump/do-nothing decisions.
 
+## Attribution and repository status
 
-<img src="documentation/img.png" alt="flappy bird screen shot" width="300" />
+The environment and supporting assignment materials are credited to Dr Zhibin Liao, University of Adelaide, for the 2025 Artificial Intelligence assignment. Several source headers explicitly state that public distribution is forbidden. This README does not override those notices or establish permission to redistribute the coursework materials. Confirm permission with the material’s owner before using this as a public portfolio distribution; no license or permission is inferred from the repository being accessible.
 
-The game is playable, and we encourage you to play the game yourself before designing your agent. 
-You may adjust the pipe, text, and background colors to make it conformable to your eyes. 
-You may also swap the bird image as you see fit.
-Also, note the game can be run with or without showing the game window, please check the `show_screen` option 
-in the game emulator. 
+## Existing entry points
 
+Use an isolated environment and the actual singular requirements filename:
 
-<span style="color:#ff5733">**You should start looking into the assignment as soon as possible. 
-It is a 30% mark assignment, and it is unlikely that you can complete this assignment with full 
-marks spending less than two days of effort.**</span>
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirement.txt
+# Human-play smoke check:
+python play_game.py --level 1
+# Agent training (long-running; not a quick inference demo):
+python my_agent.py --level 4
+```
 
-We break down the assignment description into the following sections:
+The agent entry point runs **10,000 training episodes**, writes/overwrites `my_model.ckpt` after each episode, then performs a ten-episode evaluation. Back up an existing checkpoint before running it. There is no separate evaluation-only CLI in the checked-in script; evaluation behavior is selected programmatically through `MyAgent(mode='eval', load_model_path=...)`. Only load a checkpoint you trust.
 
-1. [Installation and playing the game](documentation/INSTALLATION.md)
-2. [Assignment description](documentation/ASSIGNMENT_DESCRIPTION.md)
-3. [Game information](documentation/GAME_INFORMATION.MD)
-4. [Assessment description](documentation/ASSESSMENT_DESCRIPTION.md)
-5. [Helpful advice](documentation/HELPFUL_ADVICE.md)
+## Configuration and evidence
 
+`config.yml` defines game levels, physics, rendering and environment seed. The script’s training invocation explicitly enables the game window; do not assume the YAML’s `show_screen: false` makes this entry point headless. Levels and game-length settings affect results.
 
+The repository includes a checkpoint but no frozen multi-seed evaluation report, checkpoint provenance or documented performance comparison. Do not infer success rates, average scores or generalization from the presence of weights. The implementation and historical coursework remain the evidence available here; this documentation refresh does not retrain or evaluate the agent.
 
+## Repository map
 
+- `my_agent.py`: agent, training loop and subsequent ten-episode evaluation.
+- `pytorch_mlp.py`: MLP training/prediction and checkpoint helpers.
+- `console.py`, `clock.py`, `config.yml`: supplied environment and timing/configuration.
+- `play_game.py`, `human_agent.py`: human-play interface.
+- `requirement.txt`: supplied dependencies; see [installation notes](documentation/INSTALLATION.md).
+- [Original assignment description](documentation/ASSIGNMENT_DESCRIPTION.md), [game information](documentation/GAME_INFORMATION.MD), [assessment](documentation/ASSESSMENT_DESCRIPTION.md) and [advice](documentation/HELPFUL_ADVICE.md): retained coursework context.
 
+![Environment screenshot](documentation/img.png)
